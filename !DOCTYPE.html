@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ff0055">
+    <title>ListenPlz Studio</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="icon" href="https://via.placeholder.com/192/ff0055/ffffff?text=LP">
+
+    <style>
+        :root { --main: #ff0055; --bg: #050505; --card: #121212; --text: #fff; --neon: #00dbde; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; overflow: hidden; display: flex; height: 100vh; }
+        
+        /* AUTH SCREEN */
+        #auth-screen { position: fixed; top:0; left:0; width:100%; height:100%; background: #000; z-index: 10000; display: flex; align-items: center; justify-content: center; }
+        .auth-box { background: var(--card); padding: 40px; border-radius: 20px; border: 2px solid var(--main); width: 320px; text-align: center; box-shadow: 0 0 30px rgba(255, 0, 85, 0.4); }
+
+        /* LAYOUT */
+        .sidebar { width: 200px; background: #000; border-right: 1px solid #222; display: flex; flex-direction: column; padding: 20px; }
+        .main-view { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 25px; padding-bottom: 240px; }
+        .right-bar { width: 240px; background: #000; border-left: 1px solid #222; padding: 15px; display: flex; flex-direction: column; }
+
+        /* UI */
+        .btn { background: var(--main); border: none; color: white; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 5px 0; width: 100%; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        .btn:active { transform: scale(0.95); }
+        .card { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 12px; border: 1px solid #222; }
+        input, textarea { background: #1a1a1a; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 16px; }
+
+        /* CHAT */
+        #chat-msgs { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; scroll-behavior: smooth; }
+        .msg { background: #1a1a1a; padding: 10px; border-radius: 10px; margin-bottom: 8px; border-left: 3px solid var(--main); font-size: 13px; line-height: 1.4; }
+
+        /* TRACK BUTTONS */
+        .track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 15px; }
+        .track-btn { background: #1a1a1a; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }
+        .track-btn:hover { border-color: var(--main); background: #222; }
+
+        /* PLAYER BAR */
+        #player-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); border-top: 2px solid var(--main); padding: 15px; z-index: 100; box-sizing: border-box; }
+        .player-info { display: flex; align-items: center; gap: 15px; max-width: 1200px; margin: 0 auto; }
+        .album-art { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: #222; }
+
+        .page { display: none; } .page.active { display: block; }
+        .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; background: #333; margin-bottom: 5px; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <audio id="startup-sound"><source src="https://www.soundjay.com/buttons/sounds/button-20.mp3" type="audio/mpeg"></audio>
+
+    <div id="auth-screen">
+        <div class="auth-box">
+            <h1 style="color:var(--main); margin:0; font-size: 32px;">ListenPlz</h1>
+            <p style="color:var(--neon); font-size: 10px; letter-spacing: 3px; margin-bottom: 25px;">APPLICATION STUDIO</p>
+            <input type="text" id="user-login" placeholder="Pseudo de Pirate">
+            <button class="btn" onclick="login()">LANCER L'APPLI</button>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3 id="display-user" style="color:var(--neon); margin-bottom: 20px; font-size: 14px; overflow: hidden; text-overflow: ellipsis;">👤 Pirate</h3>
+        <button class="btn" onclick="showPage('my-music')">Ma Musique</button>
+        <button class="btn" onclick="showPage('add-page')" style="background:#222">Importer</button>
+        <div style="margin-top: auto;">
+            <button class="btn" onclick="logout()" style="background:none; color:#444; font-size:10px;">Réinitialiser</button>
+        </div>
+    </div>
+
+    <div class="main-view">
+        <div id="my-music" class="page active">
+            <h1>Bibliothèque</h1>
+            <div id="library-list"></div>
+        </div>
+
+        <div id="add-page" class="page">
+            <h1>Importer Studio</h1>
+            <div class="card">
+                <input type="file" id="file-input" accept="audio/*">
+                <input type="text" id="track-name" placeholder="Nom du Son ou de l'Album">
+                <input type="text" id="track-img" placeholder="Lien Image (Optionnel)">
+                <textarea id="timecodes" rows="8" placeholder="Format Album :&#10;0:00 Titre 1&#10;3:45 Titre 2"></textarea>
+                <button class="btn" onclick="processUpload()">AJOUTER AU STUDIO</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-bar">
+        <h4 style="color:var(--main); margin-top:0; font-size: 12px; letter-spacing: 1px;">COMMUNAUTÉ</h4>
+        <div id="chat-msgs">
+            <div class="msg"><b>Mateo:</b> Prêt pour la session ? 🎧</div>
+        </div>
+        <input type="text" id="chat-input" placeholder="Message..." onkeydown="if(event.key==='Enter') sendMsg()">
+    </div>
+
+    <div id="player-bar">
+        <div class="player-info">
+            <img src="" id="current-art" class="album-art" onerror="this.src='https://via.placeholder.com/60/111/ff0055?text=LP'">
+            <div style="flex-grow: 1;">
+                <b id="current-name" style="font-size: 18px; color: var(--main);">ListenPlz Studio</b>
+                <div id="track-controls" class="track-grid"></div>
+            </div>
+            <audio id="audio-element" controls style="height: 35px;"></audio>
+        </div>
+    </div>
+
+    <script>
+        let library = JSON.parse(localStorage.getItem('lp_app_v1')) || [];
+        let userName = localStorage.getItem('lp_username') || "";
+
+        window.onload = () => { if(userName) applyLogin(userName); };
+
+        function login() {
+            const name = document.getElementById('user-login').value || "Pirate_" + Math.floor(Math.random()*999);
+            localStorage.setItem('lp_username', name);
+            document.getElementById('startup-sound').play();
+            applyLogin(name);
+        }
+
+        function applyLogin(name) {
+            userName = name;
+            document.getElementById('display-user').innerText = "👤 " + name;
+            document.getElementById('auth-screen').style.display = 'none';
+            renderLibrary();
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id === 'my-music') renderLibrary();
+        }
+
+        function processUpload() {
+            const file = document.getElementById('file-input').files[0];
+            const name = document.getElementById('track-name').value;
+            const tc = document.getElementById('timecodes').value.trim();
+            if (!file || !name) return alert("Fichier et nom obligatoires !");
+
+            const item = {
+                id: Date.now(),
+                name: name,
+                img: document.getElementById('track-img').value,
+                timecodes: tc,
+                type: tc === "" ? "SINGLE" : "ALBUM",
+                url: URL.createObjectURL(file)
+            };
+
+            library.push(item);
+            localStorage.setItem('lp_app_v1', JSON.stringify(library));
+            showPage('my-music');
+        }
+
+        function renderLibrary() {
+            const list = document.getElementById('library-list');
+            list.innerHTML = library.length ? "" : "<p style='color:#333; text-align:center;'>Studio vide.</p>";
+            library.forEach((s, index) => {
+                list.innerHTML += `
+                    <div class="card" style="display:flex; align-items:center; gap:12px;">
+                        <img src="${s.img}" class="album-art" style="width:40px; height:40px">
+                        <div style="flex-grow:1">
+                            <span class="tag" style="background:${s.type === 'ALBUM' ? '#ff0055' : '#00dbde'}">${s.type}</span><br>
+                            <b style="font-size:14px">${s.name}</b>
+                        </div>
+                        <button class="btn" style="width:auto; padding:6px 15px; font-size:12px;" onclick="loadMusic(${index})">OUVRIR</button>
+                        <button onclick="deleteItem(${s.id})" style="background:none; border:none; color:#333; cursor:pointer;">✕</button>
+                    </div>`;
+            });
+        }
+
+        function loadMusic(index) {
+            const s = library[index];
+            const audio = document.getElementById('audio-element');
+            audio.src = s.url;
+            document.getElementById('current-name').innerText = s.name;
+            document.getElementById('current-art').src = s.img;
+            
+            const grid = document.getElementById('track-controls');
+            grid.innerHTML = "";
+            
+            if (s.type === "ALBUM" && s.timecodes) {
+                s.timecodes.split('\n').forEach(line => {
+                    const match = line.match(/(\d+):(\d+)\s*(.*)/);
+                    if (match) {
+                        const secs = (parseInt(match[1]) * 60) + parseInt(match[2]);
+                        const btn = document.createElement('button');
+                        btn.className = 'track-btn';
+                        btn.innerText = match[3] || "Piste";
+                        btn.onclick = () => { audio.currentTime = secs; audio.play(); };
+                        grid.appendChild(btn);
+                    }
+                });
+            }
+            audio.play().catch(() => alert("Ré-importe le fichier dans 'Importer' pour lier le son !"));
+        }
+
+        function sendMsg() {
+            const input = document.getElementById('chat-input');
+            if(!input.value) return;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'msg';
+            msgDiv.innerHTML = `<b>${userName}:</b> ${input.value}`;
+            document.getElementById('chat-msgs').appendChild(msgDiv);
+            input.value = "";
+            document.getElementById('chat-msgs').scrollTop = 99999;
+        }
+
+        function deleteItem(id) {
+            library = library.filter(s => s.id !== id);
+            localStorage.setItem('lp_app_v1', JSON.stringify(library));
+            renderLibrary();
+        }
+    </script>
+</body>
+</html>
+<div class="sidebar">
+    <h3 id="display-user" style="color:var(--neon); margin-bottom: 10px; font-size: 14px;">👤 Pirate</h3>
+    <button class="btn" onclick="showPage('my-music')">Ma Musique</button>
+    <button class="btn" onclick="showPage('add-page')" style="background:#222">Importer</button>
+    
+    <button class="btn" onclick="toggleFullScreen()" style="background:#444; font-size:10px; margin-top:10px;">📺 PLEIN ÉCRAN</button>
+
+    <div style="margin-top: auto;">
+        <button class="btn" onclick="logout()" style="background:none; color:#444; font-size:10px;">Réinitialiser</button>
+    </div>
+</div>
+
+<script>
+function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+}
+</script>
